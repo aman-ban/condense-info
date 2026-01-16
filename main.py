@@ -1,6 +1,5 @@
 import streamlit as st
 from google import genai
-from google.genai import types
 import os
 from fpdf import FPDF
 
@@ -93,7 +92,7 @@ if st.button("Summarize Now"):
                 )
 
                 response = client.models.generate_content(
-                    model='gemini-1.5-flash',
+                    model='models/gemini-1.5-flash-001',
                     contents=prompt
                 )
 
