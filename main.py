@@ -2,11 +2,23 @@ import streamlit as st
 import google.generativeai as genai
 import os
 from fpdf import FPDF
-from dotenv import load_dotenv
 
-# Load API Key
-load_dotenv()
-api_key = os.getenv("GOOGLE_API_KEY")
+# --- API Configuration (Cloud + Local Friendly) ---
+# This looks for the key in Streamlit Secrets first, then falls back to your local environment
+if "GOOGLE_API_KEY" in st.secrets:
+    api_key = st.secrets["GOOGLE_API_KEY"]
+else:
+    try:
+        from dotenv import load_dotenv
+        load_dotenv()
+        api_key = os.getenv("GOOGLE_API_KEY")
+    except ImportError:
+        api_key = None
+
+if not api_key:
+    st.error("API Key not found. Please add it to Streamlit Secrets or a .env file.")
+    st.stop()
+
 genai.configure(api_key=api_key)
 model = genai.GenerativeModel('gemini-1.5-flash')
 
