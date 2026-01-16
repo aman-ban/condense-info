@@ -1,26 +1,35 @@
 import streamlit as st
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 import os
 from fpdf import FPDF
 
 # --- API Configuration (Cloud + Local Friendly) ---
-if "GOOGLE_API_KEY" in st.secrets:
-    api_key = st.secrets["GOOGLE_API_KEY"]
-else:
+api_key = None
+
+# Try Streamlit Secrets first
+try:
+    if "GOOGLE_API_KEY" in st.secrets:
+        api_key = st.secrets["GOOGLE_API_KEY"]
+except:
+    pass
+
+# Fall back to .env file
+if not api_key:
     try:
         from dotenv import load_dotenv
 
         load_dotenv()
         api_key = os.getenv("GOOGLE_API_KEY")
     except ImportError:
-        api_key = None
+        pass
 
 if not api_key:
     st.error("API Key not found. Please add it to Streamlit Secrets or a .env file.")
     st.stop()
 
-genai.configure(api_key=api_key)
-model = genai.GenerativeModel('gemini-1.5-flash-latest')
+# Configure the new client
+client = genai.Client(api_key=api_key)
 
 # --- UI Configuration ---
 st.set_page_config(page_title="Condense", page_icon="📝", layout="centered")
@@ -55,13 +64,9 @@ def create_pdf(text):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Helvetica", size=12)
-
-    # Better encoding handling
     clean_text = text.encode('latin-1', 'replace').decode('latin-1')
     pdf.multi_cell(0, 10, txt=clean_text)
-
-    # Fix: Use proper method for fpdf2
-    return pdf.output()  # Returns bytes in fpdf2
+    return pdf.output()
 
 
 # --- App Layout ---
@@ -87,14 +92,17 @@ if st.button("Summarize Now"):
                     f"\n\nTEXT:\n{user_input}"
                 )
 
-                response = model.generate_content(prompt)
+                response = client.models.generate_content(
+                    model='gemini-2.0-flash-exp',
+                    contents=prompt
+                )
+
                 summary = response.text
 
                 st.divider()
                 st.subheader("Your Summary")
                 st.markdown(summary)
 
-                # PDF generation with better error handling
                 try:
                     pdf_bytes = create_pdf(summary)
                     st.download_button(
