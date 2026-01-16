@@ -4,61 +4,100 @@ import os
 from fpdf import FPDF
 from dotenv import load_dotenv
 
-# --- Configuration ---
+# Load API Key
 load_dotenv()
-api_key = os.getenv("GEMINI_API_KEY")
+api_key = os.getenv("GOOGLE_API_KEY")
 genai.configure(api_key=api_key)
-model = genai.GenerativeModel('gemini-3-flash')
+model = genai.GenerativeModel('gemini-1.5-flash')
 
-# --- Simple Usage Limiter ---
-if 'usage_count' not in st.session_state:
-    st.session_state.usage_count = 0
+# --- UI Configuration ---
+st.set_page_config(page_title="Condense", page_icon="📝", layout="centered")
 
-MAX_FREE_SUMMARIES = 5
+# Professional, minimalist CSS
+st.markdown("""
+    <style>
+    /* Main background and font */
+    .stApp { background-color: #ffffff; font-family: 'Inter', sans-serif; }
+
+    /* Input area styling */
+    .stTextArea textarea {
+        border-radius: 8px;
+        border: 1px solid #d1d5db;
+        font-size: 16px;
+        line-height: 1.6;
+    }
+
+    /* Button styling: Professional Blue */
+    .stButton button {
+        background-color: #1a73e8;
+        color: white;
+        border-radius: 6px;
+        padding: 0.6rem 2rem;
+        font-size: 18px;
+        font-weight: 500;
+        border: none;
+        transition: background-color 0.2s;
+    }
+    .stButton button:hover { background-color: #1557b0; color: white; }
+
+    /* Hide Streamlit branding for a cleaner look */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    </style>
+""", unsafe_allow_html=True)
 
 
 def create_pdf(text):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Helvetica", size=12)
-
+    # Essential for older users: clear, readable text
     clean_text = text.encode('latin-1', 'ignore').decode('latin-1')
     pdf.multi_cell(0, 10, txt=clean_text)
     return pdf.output(dest='S')
 
 
-# --- UI ---
-st.title("Condense AI")
+# --- App Layout ---
+st.title("Condense")
+st.markdown("##### Paste any long text below to get a clear, simple summary.")
 
-if st.session_state.usage_count > MAX_FREE_SUMMARIES:
-    st.error(f"You've reached your limit of {MAX_FREE_SUMMARIES} summaries for this session.")
-else:
-    remaining = MAX_FREE_SUMMARIES - st.session_state.usage_count
-    st.caption(f"Free summaries remaining: {remaining}")
+# Single, large input field
+user_input = st.text_area(
+    label="Text to summarize",
+    placeholder="Right-click here and select 'Paste'...",
+    height=350,
+    label_visibility="collapsed"
+)
 
-    user_input = st.text_area("Paste document text:", height=300)
+# Professional "Summarize" button
+if st.button("Summarize Now"):
+    if not user_input.strip():
+        st.warning("Please paste some text first.")
+    else:
+        with st.spinner("Processing... please wait a moment."):
+            try:
+                # Prompt optimized for clarity and older readers
+                prompt = (
+                    "Summarize the following text using simple, clear language. "
+                    "Use bullet points and bold headers. Avoid jargon."
+                    f"\n\nTEXT:\n{user_input}"
+                )
 
-    if st.button("Summarize"):
-        if user_input:
-            with st.spinner("Thinking..."):
-                try:
-                    response = model.generate_content(
-                        f"Provide a comprehensive summary with headers for the following text:\n\n{user_input}"
-                    )
+                response = model.generate_content(prompt)
+                summary = response.text
 
-                    st.session_state.usage_count += 1
-                    summary_text = response.text
+                # Display Results
+                st.divider()
+                st.subheader("Your Summary")
+                st.markdown(summary)
 
-                    st.subheader("Summary")
-                    st.markdown(summary_text)
-
-                    # PDF Download
-                    pdf_data = create_pdf(summary_text)
-                    st.download_button(
-                        label="Download PDF",
-                        data=pdf_data,
-                        file_name="summary.pdf",
-                        mime="application/pdf"
-                    )
-                except Exception as e:
-                    st.error(f"An error occurred: {e}")
+                # Download Option
+                pdf_bytes = create_pdf(summary)
+                st.download_button(
+                    label="📄 Save as PDF (to Print or Read)",
+                    data=pdf_bytes,
+                    file_name="summary.pdf",
+                    mime="application/pdf",
+                )
+            except Exception as e:
+                st.error("Something went wrong. Please try again in a moment.")
