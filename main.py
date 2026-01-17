@@ -61,9 +61,12 @@ def create_pdf(text):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Helvetica", size=12)
+
     clean_text = text.encode('latin-1', 'replace').decode('latin-1')
+
     pdf.multi_cell(0, 10, txt=clean_text)
-    return pdf.output()
+
+    return pdf.output(dest='S')
 
 
 # --- App Layout ---
@@ -85,7 +88,8 @@ if st.button("Summarize Now"):
             try:
                 prompt = (
                     "Summarize the following text using simple, clear language. "
-                    "Use bullet points and bold headers. Avoid jargon."
+                    "Do not use markdown formatting like asterisks or hashtags. "
+                    "Use plain text bullet points and clear headers."
                     f"\n\nTEXT:\n{user_input}"
                 )
 
