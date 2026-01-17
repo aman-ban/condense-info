@@ -3,7 +3,7 @@ from google import genai
 import os
 from fpdf import FPDF
 
-# --- API Configuration (Cloud + Local Friendly) ---
+# --- API Configuration ---
 api_key = None
 
 # Try Streamlit Secrets first
@@ -17,7 +17,6 @@ except:
 if not api_key:
     try:
         from dotenv import load_dotenv
-
         load_dotenv()
         api_key = os.getenv("GOOGLE_API_KEY")
     except ImportError:
@@ -27,7 +26,6 @@ if not api_key:
     st.error("API Key not found. Please add it to Streamlit Secrets or a .env file.")
     st.stop()
 
-# Configure the new client
 client = genai.Client(api_key=api_key)
 
 # --- UI Configuration ---
@@ -92,7 +90,7 @@ if st.button("Summarize Now"):
                 )
 
                 response = client.models.generate_content(
-                    model='models/gemini-1.5-flash-001',
+                    model='models/gemini-flash-lite-latest',
                     contents=prompt
                 )
 
@@ -112,8 +110,6 @@ if st.button("Summarize Now"):
                     )
                 except Exception as pdf_error:
                     st.warning("Summary generated, but PDF creation failed. You can copy the text above.")
-                    st.error(f"PDF Error: {str(pdf_error)}")
 
             except Exception as e:
                 st.error(f"Something went wrong: {str(e)}")
-                st.error("Please try again in a moment.")
