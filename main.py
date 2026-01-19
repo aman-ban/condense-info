@@ -10,17 +10,8 @@ from gtts import gTTS
 def configure_api():
     api_key = st.secrets.get("GOOGLE_API_KEY")
     if not api_key:
-        try:
-            from dotenv import load_dotenv
-            load_dotenv()
-            api_key = os.getenv("GOOGLE_API_KEY")
-        except ImportError:
-            api_key = None
-
-    if not api_key:
-        st.error("API Key not found.")
+        st.error("API Key not found in Streamlit Secrets.")
         st.stop()
-
     return genai.Client(api_key=api_key)
 
 client = configure_api()
@@ -73,32 +64,12 @@ def create_pdf(text):
 
 
 def build_bias_prompt(text):
-    return f"""
-Analyze the following news article for potential bias.
+    base_instructions = st.secrets.get("BIAS_PROMPT")
 
-Focus ONLY on:
-- Emotional or loaded language
-- Framing or narrative slant
-- Missing perspectives or voices
-- Assumptions presented as facts
+    if not base_instructions:
+        return f"Analyze this text for bias: {text}"
 
-DO NOT:
-- State whether the article is true or false
-- Take a political position
-- Use ideological labels
-- Make moral judgments
-
-Output format:
-- Overall tone (neutral / slightly biased / strongly biased)
-- Specific examples of biased language (if any)
-- Notable omissions or one-sided framing
-- A brief neutral rewrite of one biased sentence (if applicable)
-
-Include a bias score from 0 (neutral) to 10 (highly biased).
-
-TEXT:
-{text}
-"""
+    return f"{base_instructions}\n\n{text}"
 
 # --- 4. UI LAYOUT ---
 st.set_page_config(page_title="Condense", page_icon="📝", layout="centered")
