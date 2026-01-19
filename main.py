@@ -60,7 +60,8 @@ def create_pdf(text):
         else:
             pdf.multi_cell(page_width, 8, line)
 
-    return pdf.output(dest="S").encode("latin-1")
+    output = pdf.output(dest="S")
+    return bytes(output) if isinstance(output, bytearray) else output.encode("latin-1")
 
 
 def build_bias_prompt(text):
