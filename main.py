@@ -3,6 +3,7 @@ from google import genai
 import os
 from fpdf import FPDF
 from io import BytesIO
+from gtts import gTTS
 
 
 # --- 1. API & MODEL CONFIGURATION ---
@@ -34,6 +35,7 @@ if 'uploader_key' not in st.session_state:
 # --- 3. HELPER FUNCTIONS ---
 def clear_text():
     st.session_state["main_text_area"] = ""
+    st.session_state["last_uploaded_file"] = None
     st.session_state.uploader_key += 1
 
 def create_pdf(text):
@@ -41,15 +43,19 @@ def create_pdf(text):
     pdf.add_page()
     pdf.set_font("Helvetica", size=12)
 
-    clean_text = text.encode('latin-1', 'replace').decode('latin-1')
+    clean_text = (
+        text.replace('—', '-')
+            .replace('“', '"')
+            .replace('”', '"')
+            .replace('‘', "'")
+            .replace('’', "'")
+    )
 
-    pdf.multi_cell(0, 10, txt=clean_text)
+    safe_text = clean_text.encode("latin-1", "replace").decode("latin-1")
+    pdf.multi_cell(0, 8, safe_text)
 
-    pdf_output = pdf.output(dest='S')
-
-    if isinstance(pdf_output, str):
-        return BytesIO(pdf_output.encode('latin-1'))
-    return BytesIO(pdf_output)
+    pdf_bytes = pdf.output(dest="S").encode("latin-1")
+    return pdf_bytes
 
 
 # --- 4. UI LAYOUT ---
@@ -120,6 +126,18 @@ user_input = st.text_area(
     key="main_text_area"
 )
 
+languages = {
+    "English": ("en", "English"),
+    "Spanish": ("es", "Spanish"),
+    "French": ("fr", "French"),
+    "German": ("de", "German"),
+    "Italian": ("it", "Italian"),
+    "Portuguese": ("pt", "Portuguese"),
+}
+
+selected_lang_name = st.selectbox("Output Language:", options=list(languages.keys()))
+lang_code, lang_name = languages[selected_lang_name]
+
 # --- 7. SUMMARIZE & CLEAR BUTTONS ---
 col1, col2 = st.columns([1, 1])
 
@@ -136,45 +154,84 @@ if summarize_btn:
     if not text_to_process:
         st.warning("Please upload a file or paste some text first.")
     else:
-        with st.spinner("Condensing your information..."):
+        with st.spinner(f"Condensing your information in {selected_lang_name}..."):
             try:
-
                 prompt = (
-                    "Summarize the following text clearly for a general audience. "
-                    "Use bold headers and bullet points. Avoid complex jargon.\n\n"
+                    f"Summarize the following text clearly in {lang_name} for a general audience. "
+                    "Use bold headers and bullet points. Avoid complex jargon. "
+                    f"The entire summary must be written in {lang_name}.\n\n"
                     f"TEXT:\n{text_to_process}"
                 )
 
-
-                response = client.models.generate_content(
-                    model='gemini-2.0-flash',
-                    contents=prompt
-                )
+                try:
+                    response = client.models.generate_content(
+                        model='gemini-2.0-flash-lite',
+                        contents=prompt
+                    )
+                except Exception as quota_error:
+                    if "quota" in str(quota_error).lower() or "resource" in str(quota_error).lower():
+                        st.info("Switching to backup model due to high demand...")
+                        response = client.models.generate_content(
+                            model='gemini-1.5-flash-8b',
+                            contents=prompt
+                        )
+                    else:
+                        raise quota_error
 
                 if not response.text:
-                    st.error("The AI returned an empty response. Try slightly different text.")
+                    st.error("The AI returned an empty response.")
                 else:
                     summary = response.text
 
-
                     st.divider()
-                    st.subheader("Your Summary")
+                    st.subheader(f"Your {selected_lang_name} Summary")
                     st.markdown(summary)
 
+                    try:
+                        with st.status(f"Generating {selected_lang_name} audio...", expanded=False):
+
+                            speech_text = (
+                                summary
+                                .replace("*", "")
+                                .replace("#", "")
+                                .replace("•", "")
+                                .replace("\n", " ")
+                            )
+
+                            speech_text = speech_text[:4500]
+
+                            tts_lang = lang_code
+                            if lang_code == "pt":
+                                tts_lang = "pt-br"
+
+                            tts = gTTS(
+                                text=speech_text,
+                                lang=tts_lang,
+                                slow=False,
+                                tld="com"
+                            )
+
+                            audio_fp = BytesIO()
+                            tts.write_to_fp(audio_fp)
+                            audio_fp.seek(0)
+
+                            st.audio(audio_fp.read(), format="audio/mpeg")
+
+
+                    except Exception as tts_error:
+                        st.info(f"Audio error: {tts_error}")
 
                     try:
-
-                        pdf_buffer = create_pdf(summary)
-
+                        pdf_data = create_pdf(summary)
                         st.download_button(
-                            label="📄 Save as PDF (to Print or Read)",
-                            data=pdf_buffer.getvalue(),
-                            file_name="summary.pdf",
+                            label=f"📄 Save {selected_lang_name} PDF",
+                            data=pdf_data,
+                            file_name=f"summary_{lang_code}.pdf",
                             mime="application/pdf",
+                            use_container_width=True
                         )
                     except Exception as pdf_error:
                         st.warning(f"Summary created, but PDF failed: {pdf_error}")
 
             except Exception as e:
-
                 st.error(f"Something went wrong: {str(e)}")
