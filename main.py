@@ -64,6 +64,33 @@ def create_pdf(text):
 
     return pdf.output(dest="S").encode("latin-1")
 
+def build_bias_prompt(text):
+    return f"""
+Analyze the following news article for potential bias.
+
+Focus ONLY on:
+- Emotional or loaded language
+- Framing or narrative slant
+- Missing perspectives or voices
+- Assumptions presented as facts
+
+DO NOT:
+- State whether the article is true or false
+- Take a political position
+- Use ideological labels
+- Make moral judgments
+
+Output format:
+- Overall tone (neutral / slightly biased / strongly biased)
+- Specific examples of biased language (if any)
+- Notable omissions or one-sided framing
+- A brief neutral rewrite of one biased sentence (if applicable)
+
+Include a bias score from 0 (neutral) to 10 (highly biased).
+
+TEXT:
+{text}
+"""
 
 # --- 4. UI LAYOUT ---
 st.set_page_config(page_title="Condense", page_icon="📝", layout="centered")
@@ -146,13 +173,17 @@ selected_lang_name = st.selectbox("Output Language:", options=list(languages.key
 lang_code, lang_name = languages[selected_lang_name]
 
 # --- 7. SUMMARIZE & CLEAR BUTTONS ---
-col1, col2 = st.columns([1, 1])
+col1, col2, col3 = st.columns([1, 1, 1])
 
 with col1:
     summarize_btn = st.button("Summarize Now", use_container_width=True, type="primary")
 
 with col2:
+    detect_bias_btn = st.button("Detect Bias", use_container_width=True)
+
+with col3:
     st.button("Clear All", on_click=clear_text, use_container_width=True)
+
 
 # --- 8. PROCESSING LOGIC ---
 if summarize_btn:
@@ -242,3 +273,30 @@ if summarize_btn:
 
             except Exception as e:
                 st.error(f"Something went wrong: {str(e)}")
+
+if detect_bias_btn:
+    text_to_process = user_input.strip()
+
+    if not text_to_process:
+        st.warning("Please upload or paste an article first.")
+    else:
+        with st.spinner("Analyzing article for bias..."):
+            try:
+                response = client.models.generate_content(
+                    model="gemini-2.0-flash-lite",
+                    contents=build_bias_prompt(text_to_process)
+                )
+
+                if not response.text:
+                    st.error("The AI returned an empty bias analysis.")
+                else:
+                    st.divider()
+                    st.subheader("Bias Analysis")
+                    st.caption(
+                        "Bias analysis highlights language, framing, and omissions. "
+                        "It does not assess factual accuracy or intent."
+                    )
+                    st.markdown(response.text)
+
+            except Exception as e:
+                st.error(f"Bias detection failed: {e}")
