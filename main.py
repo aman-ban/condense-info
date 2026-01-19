@@ -1,6 +1,5 @@
 import streamlit as st
 from google import genai
-import os
 from fpdf import FPDF
 from io import BytesIO
 from gtts import gTTS
@@ -171,29 +170,32 @@ if summarize_btn:
     if not text_to_process:
         st.warning("Please upload a file or paste some text first.")
     else:
-        with st.spinner(f"Condensing your information in {selected_lang_name}..."):
+        with st.spinner(f"Generating Intelligence Brief in {selected_lang_name}..."):
             try:
-                prompt = (
-                    f"Summarize the following text clearly in {lang_name} for a general audience. "
-                    "Use bold headers and bullet points. Avoid complex jargon. "
-                    f"The entire summary must be written in {lang_name}.\n\n"
+                base_prompt = st.secrets["SUMMARY_PROMPT"]
+
+                final_prompt = (
+                    f"{base_prompt}\n"
+                    f"IMPORTANT: Provide the entire response in {lang_name}.\n\n"
                     f"TEXT:\n{text_to_process}"
                 )
 
+                # --- NESTED TRY FOR QUOTA HANDLING ---
                 try:
                     response = client.models.generate_content(
                         model='gemini-2.0-flash-lite',
-                        contents=prompt
+                        contents=final_prompt
                     )
                 except Exception as quota_error:
                     if "quota" in str(quota_error).lower() or "resource" in str(quota_error).lower():
                         st.info("Switching to backup model due to high demand...")
                         response = client.models.generate_content(
-                            model='gemini-1.5-flash-8b',
-                            contents=prompt
+                            model='gemini-1.5-flash',
+                            contents=final_prompt
                         )
                     else:
                         raise quota_error
+                # ---------------------------------------
 
                 if not response.text:
                     st.error("The AI returned an empty response.")
@@ -204,9 +206,9 @@ if summarize_btn:
                     st.subheader(f"Your {selected_lang_name} Summary")
                     st.markdown(summary)
 
+                    # Audio Logic
                     try:
                         with st.status(f"Generating {selected_lang_name} audio...", expanded=False):
-
                             speech_text = (
                                 summary
                                 .replace("*", "")
@@ -214,30 +216,21 @@ if summarize_btn:
                                 .replace("•", "")
                                 .replace("\n", " ")
                             )
-
                             speech_text = speech_text[:4500]
 
                             tts_lang = lang_code
                             if lang_code == "pt":
                                 tts_lang = "pt-br"
 
-                            tts = gTTS(
-                                text=speech_text,
-                                lang=tts_lang,
-                                slow=False,
-                                tld="com"
-                            )
-
+                            tts = gTTS(text=speech_text, lang=tts_lang, slow=False)
                             audio_fp = BytesIO()
                             tts.write_to_fp(audio_fp)
                             audio_fp.seek(0)
-
                             st.audio(audio_fp.read(), format="audio/mpeg")
-
-
                     except Exception as tts_error:
                         st.info(f"Audio error: {tts_error}")
 
+                    # PDF Logic
                     try:
                         pdf_data = create_pdf(summary)
                         st.download_button(
@@ -270,11 +263,7 @@ if detect_bias_btn:
                     st.error("The AI returned an empty bias analysis.")
                 else:
                     st.divider()
-                    st.subheader("Bias Analysis")
-                    st.caption(
-                        "Bias analysis highlights language, framing, and omissions. "
-                        "It does not assess factual accuracy or intent."
-                    )
+
                     st.markdown(response.text)
 
             except Exception as e:
