@@ -3,15 +3,15 @@ from google import genai
 from fpdf import FPDF
 from io import BytesIO
 from gtts import gTTS
+import pypdf
 
 
 # --- 1. API & MODEL CONFIGURATION ---
 def configure_api():
-    api_key = st.secrets.get("GOOGLE_API_KEY")
-    if not api_key:
+    if "GOOGLE_API_KEY" not in st.secrets:
         st.error("API Key not found in Streamlit Secrets.")
         st.stop()
-    return genai.Client(api_key=api_key)
+    return genai.Client(api_key=st.secrets["GOOGLE_API_KEY"])
 
 client = configure_api()
 
@@ -20,6 +20,8 @@ if 'text_input' not in st.session_state:
     st.session_state.text_input = ""
 if 'uploader_key' not in st.session_state:
     st.session_state.uploader_key = 0
+if "last_uploaded_file" not in st.session_state:
+    st.session_state["last_uploaded_file"] = None
 
 
 # --- 3. HELPER FUNCTIONS ---
@@ -27,6 +29,7 @@ def clear_text():
     st.session_state["main_text_area"] = ""
     st.session_state["last_uploaded_file"] = None
     st.session_state.uploader_key += 1
+
 
 def create_pdf(text):
     pdf = FPDF()
@@ -37,19 +40,17 @@ def create_pdf(text):
 
     clean_text = (
         text.replace("**", "")
-            .replace("#", "")
-            .replace("•", "-")
-            .replace("—", "-")
-            .replace("“", '"')
-            .replace("”", '"')
-            .replace("‘", "'")
-            .replace("’", "'")
+        .replace("#", "")
+        .replace("•", "-")
+        .replace("—", "-")
+        .replace("“", '"')
+        .replace("”", '"')
+        .replace("‘", "'")
+        .replace("’", "'")
     )
 
     clean_text = "\n".join(line.strip() for line in clean_text.splitlines())
-
     safe_text = clean_text.encode("latin-1", "replace").decode("latin-1")
-
     page_width = pdf.w - pdf.l_margin - pdf.r_margin
 
     for line in safe_text.split("\n"):
@@ -63,12 +64,13 @@ def create_pdf(text):
 
 
 def build_bias_prompt(text):
-    base_instructions = st.secrets.get("BIAS_PROMPT")
-
-    if not base_instructions:
+    try:
+        base_instructions = st.secrets["BIAS_PROMPT"]
+    except:
         return f"Analyze this text for bias: {text}"
 
     return f"{base_instructions}\n\n{text}"
+
 
 # --- 4. UI LAYOUT ---
 st.set_page_config(page_title="Condense", page_icon="📝", layout="centered")
@@ -76,25 +78,10 @@ st.set_page_config(page_title="Condense", page_icon="📝", layout="centered")
 st.title("Condense.info")
 st.markdown("""
     <style>
-    /* Force high contrast for the whole app */
-    html, body, [data-testid="stAppViewContainer"] {
-        background-color: white !important;
-        color: black !important;
-    }
-    /* Force the text area specifically */
-    .stTextArea textarea {
-        background-color: #ffffff !important;
-        color: #000000 !important;
-        border: 1px solid #d1d5db !important;
-    }
-    /* Ensure all markdown (summary text) is black */
-    .stMarkdown p, .stMarkdown h1, .stMarkdown h2, .stMarkdown h3, .stMarkdown h4, .stMarkdown h5 {
-        color: black !important;
-    }
-    /* Ensure labels for buttons and uploaders are black */
-    label, .stFileUploader label {
-        color: black !important;
-    }
+    html, body, [data-testid="stAppViewContainer"] { background-color: white !important; color: black !important; }
+    .stTextArea textarea { background-color: #ffffff !important; color: #000000 !important; border: 1px solid #d1d5db !important; }
+    .stMarkdown p, .stMarkdown h1, .stMarkdown h2, .stMarkdown h3, .stMarkdown h4, .stMarkdown h5 { color: black !important; }
+    label, .stFileUploader label { color: black !important; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -106,25 +93,19 @@ uploaded_file = st.file_uploader(
 )
 
 if uploaded_file:
-
     file_id = f"{uploaded_file.name}_{uploaded_file.size}"
     if st.session_state.get("last_uploaded_file") != file_id:
         with st.spinner("Extracting text from file..."):
             try:
                 if uploaded_file.type == "application/pdf":
-                    import pypdf
-
                     reader = pypdf.PdfReader(uploaded_file)
                     pages = [page.extract_text() for page in reader.pages if page.extract_text()]
                     extracted_content = "\n\n".join(pages)
                 else:
                     extracted_content = uploaded_file.read().decode("utf-8")
 
-
                 st.session_state["main_text_area"] = extracted_content
-
                 st.session_state["last_uploaded_file"] = file_id
-
                 st.rerun()
 
             except Exception as e:
@@ -162,7 +143,6 @@ with col2:
 with col3:
     st.button("Clear All", on_click=clear_text, use_container_width=True)
 
-
 # --- 8. PROCESSING LOGIC ---
 if summarize_btn:
     text_to_process = user_input.strip()
@@ -170,8 +150,12 @@ if summarize_btn:
     if not text_to_process:
         st.warning("Please upload a file or paste some text first.")
     else:
-        with st.spinner(f"Generating Intelligence Brief in {selected_lang_name}..."):
+        with st.spinner(f"Generating Brief..."):
             try:
+                if "SUMMARY_PROMPT" not in st.secrets:
+                    st.error("SUMMARY_PROMPT missing from secrets.toml")
+                    st.stop()
+
                 base_prompt = st.secrets["SUMMARY_PROMPT"]
 
                 final_prompt = (
@@ -180,7 +164,6 @@ if summarize_btn:
                     f"TEXT:\n{text_to_process}"
                 )
 
-                # --- NESTED TRY FOR QUOTA HANDLING ---
                 try:
                     response = client.models.generate_content(
                         model='gemini-2.0-flash-lite',
@@ -188,40 +171,26 @@ if summarize_btn:
                     )
                 except Exception as quota_error:
                     if "quota" in str(quota_error).lower() or "resource" in str(quota_error).lower():
-                        st.info("Switching to backup model due to high demand...")
                         response = client.models.generate_content(
-                            model='gemini-1.5-flash',
+                            model='gemini-1.5-flash-8b',
                             contents=final_prompt
                         )
                     else:
                         raise quota_error
-                # ---------------------------------------
 
                 if not response.text:
                     st.error("The AI returned an empty response.")
                 else:
                     summary = response.text
-
                     st.divider()
                     st.subheader(f"Your {selected_lang_name} Summary")
                     st.markdown(summary)
 
                     # Audio Logic
                     try:
-                        with st.status(f"Generating {selected_lang_name} audio...", expanded=False):
-                            speech_text = (
-                                summary
-                                .replace("*", "")
-                                .replace("#", "")
-                                .replace("•", "")
-                                .replace("\n", " ")
-                            )
-                            speech_text = speech_text[:4500]
-
-                            tts_lang = lang_code
-                            if lang_code == "pt":
-                                tts_lang = "pt-br"
-
+                        with st.status(f"Generating audio...", expanded=False):
+                            speech_text = summary.replace("*", "").replace("#", "").replace("\n", " ")[:4500]
+                            tts_lang = "pt-br" if lang_code == "pt" else lang_code
                             tts = gTTS(text=speech_text, lang=tts_lang, slow=False)
                             audio_fp = BytesIO()
                             tts.write_to_fp(audio_fp)
@@ -248,7 +217,6 @@ if summarize_btn:
 
 if detect_bias_btn:
     text_to_process = user_input.strip()
-
     if not text_to_process:
         st.warning("Please upload or paste an article first.")
     else:
@@ -258,13 +226,7 @@ if detect_bias_btn:
                     model="gemini-2.0-flash-lite",
                     contents=build_bias_prompt(text_to_process)
                 )
-
-                if not response.text:
-                    st.error("The AI returned an empty bias analysis.")
-                else:
-                    st.divider()
-
-                    st.markdown(response.text)
-
+                st.divider()
+                st.markdown(response.text)
             except Exception as e:
                 st.error(f"Bias detection failed: {e}")
