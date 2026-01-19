@@ -40,22 +40,29 @@ def clear_text():
 
 def create_pdf(text):
     pdf = FPDF()
+    pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
     pdf.set_font("Helvetica", size=12)
 
     clean_text = (
-        text.replace('—', '-')
-            .replace('“', '"')
-            .replace('”', '"')
-            .replace('‘', "'")
-            .replace('’', "'")
+        text.replace("**", "")
+            .replace("#", "")
+            .replace("•", "-")
+            .replace("—", "-")
+            .replace("“", '"')
+            .replace("”", '"')
+            .replace("‘", "'")
+            .replace("’", "'")
     )
 
-    safe_text = clean_text.encode("latin-1", "replace").decode("latin-1")
-    pdf.multi_cell(0, 8, safe_text)
+    clean_text = "\n".join(line.strip() for line in clean_text.splitlines())
 
-    pdf_bytes = pdf.output(dest="S").encode("latin-1")
-    return pdf_bytes
+    safe_text = clean_text.encode("latin-1", "replace").decode("latin-1")
+
+    for line in safe_text.split("\n"):
+        pdf.multi_cell(0, 8, line)
+
+    return pdf.output(dest="S").encode("latin-1")
 
 
 # --- 4. UI LAYOUT ---
