@@ -40,6 +40,7 @@ def clear_text():
 
 def create_pdf(text):
     pdf = FPDF()
+    pdf.set_margins(left=15, top=15, right=15)
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
     pdf.set_font("Helvetica", size=12)
@@ -59,10 +60,17 @@ def create_pdf(text):
 
     safe_text = clean_text.encode("latin-1", "replace").decode("latin-1")
 
+    page_width = pdf.w - pdf.l_margin - pdf.r_margin
+
     for line in safe_text.split("\n"):
-        pdf.multi_cell(0, 8, line)
+        pdf.set_x(pdf.l_margin)
+        if line.strip() == "":
+            pdf.ln(8)
+        else:
+            pdf.multi_cell(page_width, 8, line)
 
     return pdf.output(dest="S").encode("latin-1")
+
 
 def build_bias_prompt(text):
     return f"""
