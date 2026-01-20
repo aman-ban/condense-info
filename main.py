@@ -167,13 +167,13 @@ if summarize_btn:
 
                 try:
                     response = client.models.generate_content(
-                        model='gemini-2.0-flash-lite',
+                        model='gemini-flash-latest',
                         contents=final_prompt
                     )
                 except Exception as quota_error:
                     if "quota" in str(quota_error).lower() or "resource" in str(quota_error).lower():
                         response = client.models.generate_content(
-                            model='gemini-flash-latest',
+                            model='gemini-2.5-flash-lite',
                             contents=final_prompt
                         )
                     else:
