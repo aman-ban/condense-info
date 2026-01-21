@@ -4,7 +4,7 @@ from fpdf import FPDF
 from io import BytesIO
 from gtts import gTTS
 import pypdf
-
+from google.genai import types
 
 # --- 1. API & MODEL CONFIGURATION ---
 def configure_api():
@@ -88,8 +88,8 @@ st.markdown("""
 
 # --- 5. FILE UPLOADER LOGIC ---
 uploaded_file = st.file_uploader(
-    "Upload a document (PDF or Text)",
-    type=['pdf', 'txt'],
+    "Upload a document (PDF, Text, or Image)",
+    type=['pdf', 'txt', 'jpg', 'jpeg', 'png', 'webp'], # Added image types
     key=f"file_uploader_{st.session_state.uploader_key}"
 )
 
@@ -98,7 +98,25 @@ if uploaded_file:
     if st.session_state.get("last_uploaded_file") != file_id:
         with st.spinner("Extracting text from file..."):
             try:
-                if uploaded_file.type == "application/pdf":
+
+                if uploaded_file.type in ["image/jpeg", "image/png", "image/webp"]:
+                    st.image(uploaded_file, caption="Uploaded Image", use_container_width=True)
+
+                    image_bytes = uploaded_file.read()
+
+                    response = client.models.generate_content(
+                        model='gemini-2.0-flash-exp',
+                        contents=[
+                            "Please transcribe all the text found in this image. Do not add any commentary.",
+                            types.Part.from_bytes(
+                                data=image_bytes,
+                                mime_type=uploaded_file.type
+                            )
+                        ]
+                    )
+                    extracted_content = response.text
+
+                elif uploaded_file.type == "application/pdf":
                     reader = pypdf.PdfReader(uploaded_file)
                     pages = [page.extract_text() for page in reader.pages if page.extract_text()]
                     extracted_content = "\n\n".join(pages)
@@ -173,7 +191,7 @@ if summarize_btn:
                 except Exception as quota_error:
                     if "quota" in str(quota_error).lower() or "resource" in str(quota_error).lower():
                         response = client.models.generate_content(
-                            model='gemini-2.5-flash-lite',
+                            model='gemini-pro-latest',
                             contents=final_prompt
                         )
                     else:
@@ -224,7 +242,7 @@ if detect_bias_btn:
         with st.spinner("Analyzing article for bias..."):
             try:
                 response = client.models.generate_content(
-                    model="gemini-2.0-flash-lite",
+                    model="gemini-flash-latest",
                     contents=build_bias_prompt(text_to_process)
                 )
                 st.divider()
