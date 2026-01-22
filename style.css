@@ -1,0 +1,70 @@
+/* Global Reset */
+html, body, [data-testid="stAppViewContainer"] {
+    background-color: white !important;
+    color: #1E293B !important;
+}
+
+/* Professional Header */
+.header-container {
+    background-color: #1E293B;
+    padding: 2.5rem 1rem;
+    border-radius: 12px;
+    margin-bottom: 2rem;
+    text-align: center;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+}
+.header-title {
+    color: white !important;
+    font-size: 3rem !important;
+    font-weight: 800 !important;
+    margin: 0 !important;
+    letter-spacing: -1.5px !important;
+}
+.header-subtitle {
+    color: #94A3B8 !important;
+    font-size: 1.1rem;
+    margin-top: 8px;
+    font-weight: 400;
+}
+
+/* Standard Button Properties */
+div.stButton > button {
+    border-radius: 8px !important;
+    font-weight: 600 !important;
+    transition: all 0.2s ease !important;
+    height: 3rem;
+}
+
+div.stButton > button[kind="primary"] {
+    background-color: #2563eb !important;
+    color: white !important;
+    border: none !important;
+    width: 100%;
+}
+
+div.stButton > button[kind="primary"]:hover {
+    background-color: #1d4ed8 !important;
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+}
+
+div.stButton > button[kind="secondary"] {
+    background-color: white !important;
+    color: #4f46e5 !important;
+    border: 1px solid #4f46e5 !important;
+}
+
+div.stButton > button[kind="secondary"]:hover {
+    background-color: #f5f3ff !important;
+    color: #4338ca !important;
+    border-color: #4338ca !important;
+}
+
+/* Text Area */
+.stTextArea textarea {
+    border-radius: 10px !important;
+    border: 1px solid #e2e8f0 !important;
+}
+
+/* Branding cleanup */
+header {visibility: hidden;}
+footer {visibility: hidden;}

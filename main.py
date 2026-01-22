@@ -76,20 +76,29 @@ def build_bias_prompt(text):
 # --- 4. UI LAYOUT ---
 st.set_page_config(page_title="Condense", page_icon="📝", layout="centered")
 
-st.title("Condense.info")
+def local_css(file_name):
+    with open(file_name) as f:
+        st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+
+# Load the external CSS
+try:
+    local_css("style.css")
+except FileNotFoundError:
+    # Fallback if file isn't found
+    st.warning("style.css not found. Using default styles.")
+
+# Render the Header
 st.markdown("""
-    <style>
-    html, body, [data-testid="stAppViewContainer"] { background-color: white !important; color: black !important; }
-    .stTextArea textarea { background-color: #ffffff !important; color: #000000 !important; border: 1px solid #d1d5db !important; }
-    .stMarkdown p, .stMarkdown h1, .stMarkdown h2, .stMarkdown h3, .stMarkdown h4, .stMarkdown h5 { color: black !important; }
-    label, .stFileUploader label { color: black !important; }
-    </style>
+    <div class="header-container">
+        <h1 class="header-title">condense.info</h1>
+        <p class="header-subtitle">Intelligent document summarization & bias detection</p>
+    </div>
 """, unsafe_allow_html=True)
 
 # --- 5. FILE UPLOADER LOGIC ---
 uploaded_file = st.file_uploader(
     "Upload a document (PDF, Text, or Image)",
-    type=['pdf', 'txt', 'jpg', 'jpeg', 'png', 'webp'], # Added image types
+    type=['pdf', 'txt', 'jpg', 'jpeg', 'png', 'webp'],
     key=f"file_uploader_{st.session_state.uploader_key}"
 )
 
@@ -157,7 +166,7 @@ with col1:
     summarize_btn = st.button("Summarize Now", use_container_width=True, type="primary")
 
 with col2:
-    detect_bias_btn = st.button("Detect Bias", use_container_width=True)
+    detect_bias_btn = st.button("Detect Bias", use_container_width=True, type="secondary")
 
 with col3:
     st.button("Clear All", on_click=clear_text, use_container_width=True)
