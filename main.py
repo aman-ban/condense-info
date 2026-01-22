@@ -80,14 +80,11 @@ def local_css(file_name):
     with open(file_name) as f:
         st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
 
-# Load the external CSS
 try:
     local_css("style.css")
 except FileNotFoundError:
-    # Fallback if file isn't found
     st.warning("style.css not found. Using default styles.")
 
-# Render the Header
 st.markdown("""
     <div class="header-container">
         <h1 class="header-title">condense.info</h1>
@@ -169,7 +166,7 @@ with col2:
     detect_bias_btn = st.button("Detect Bias", use_container_width=True, type="secondary")
 
 with col3:
-    st.button("Clear All", on_click=clear_text, use_container_width=True)
+    st.button("Clear All", on_click=clear_text, use_container_width=True, type="tertiary")
 
 # --- 8. PROCESSING LOGIC ---
 if summarize_btn:
