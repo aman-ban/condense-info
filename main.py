@@ -156,17 +156,27 @@ languages = {
 selected_lang_name = st.selectbox("Output Language:", options=list(languages.keys()))
 lang_code, lang_name = languages[selected_lang_name]
 
-# --- 7. SUMMARIZE & CLEAR BUTTONS ---
-col1, col2, col3 = st.columns([1, 1, 1])
+audio_source = st.radio(
+    "Read Aloud:",
+    options=["Summary", "Full Document"],
+    horizontal=True,
+    index=0
+)
+
+# --- 7. ACTION BUTTONS ---
+col1, col2, col3, col4 = st.columns([1, 1, 1, 1])
 
 with col1:
-    summarize_btn = st.button("Summarize Now", use_container_width=True, type="primary")
+    summarize_btn = st.button("Summarize", width='stretch', type='primary')
 
 with col2:
-    detect_bias_btn = st.button("Detect Bias", use_container_width=True, type="secondary")
+    detect_bias_btn = st.button("Detect Bias", width='stretch', type='secondary')
 
 with col3:
-    st.button("Clear All", on_click=clear_text, use_container_width=True, type="tertiary")
+    audio_btn = st.button("Read Aloud", width='stretch', type='secondary')
+
+with col4:
+    st.button("Clear All", on_click=clear_text, width='stretch', type='tertiary')
 
 # --- 8. PROCESSING LOGIC ---
 if summarize_btn:
@@ -211,19 +221,6 @@ if summarize_btn:
                     st.subheader(f"Your {selected_lang_name} Summary")
                     st.markdown(summary)
 
-                    # Audio Logic
-                    try:
-                        with st.status(f"Generating audio...", expanded=False):
-                            speech_text = summary.replace("*", "").replace("#", "").replace("\n", " ")[:4500]
-                            tts_lang = "pt-br" if lang_code == "pt" else lang_code
-                            tts = gTTS(text=speech_text, lang=tts_lang, slow=False)
-                            audio_fp = BytesIO()
-                            tts.write_to_fp(audio_fp)
-                            audio_fp.seek(0)
-                            st.audio(audio_fp.read(), format="audio/mpeg")
-                    except Exception as tts_error:
-                        st.info(f"Audio error: {tts_error}")
-
                     # PDF Logic
                     try:
                         pdf_data = create_pdf(summary)
@@ -255,3 +252,31 @@ if detect_bias_btn:
                 st.markdown(response.text)
             except Exception as e:
                 st.error(f"Bias detection failed: {e}")
+
+if audio_btn:
+    text_to_read = ""
+
+    if audio_source == "Full Document":
+        text_to_read = user_input.strip()
+    else:
+        st.warning("To hear the summary, please click 'Summarize' first. Otherwise, switch to 'Full Document'.")
+        st.stop()
+
+    if not text_to_read:
+        st.warning("No text found to read!")
+    else:
+        try:
+            with st.status(f"Converting {audio_source} to speech...", expanded=False):
+                clean_speech = text_to_read.replace("*", "").replace("#", "").replace("\n", " ")[:5000]
+
+                tts_lang = "pt-br" if lang_code == "pt" else lang_code
+                tts = gTTS(text=clean_speech, lang=tts_lang, slow=False)
+
+                audio_fp = BytesIO()
+                tts.write_to_fp(audio_fp)
+                audio_fp.seek(0)
+
+                st.success(f"Audio ready for {audio_source}!")
+                st.audio(audio_fp.read(), format="audio/mpeg")
+        except Exception as e:
+            st.error(f"Audio generation failed: {e}")
